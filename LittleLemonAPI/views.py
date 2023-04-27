@@ -1,18 +1,23 @@
 from django.shortcuts import render
-from .models import MenuItem
+from .models import MenuItem, Category
 from .serializers import MenuItemSerializer
-from rest_framework.decorators import api_view
+from rest_framework import generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status
 
 # Create your views here.
-class MenuItemList(APIView):
+
+class MenuItemList(generics.ListCreateAPIView):
     """
     View list of menu items in the system.
 
     * Only Manager user can create new menu items.
     """
+
+    queryset = MenuItem.objects.all()
+    serializer_class = MenuItemSerializer
+
     def get(self, request):
         items = MenuItem.objects.all()
         serialized_item = MenuItemSerializer(items, many=True)
@@ -23,12 +28,15 @@ class MenuItemList(APIView):
             title = request.POST.get('title')
             price = request.POST.get('price')
             featured = request.POST.get('featured')
-            category = request.POST.get('category')
+            categoryId = request.POST.get('category')
+            
+
+            category = Category.objects.get(pk=categoryId)
             menu_item = MenuItem(
                 title = title,
-                author = price,
-                featured = featured,
-                category = category,
+                price = price,
+                featured = bool(featured),
+                category = category
             )
             try:
                 menu_item.save()
@@ -38,12 +46,3 @@ class MenuItemList(APIView):
 
         else:
             return Response({"message": "this operation is permited!"}, status.HTTP_403_FORBIDDEN)
-    
-    def put(self, request):
-        return Response({"message": "this operation is permited!"}, status.HTTP_403_FORBIDDEN)
-    
-    def patch(self, request):
-        return Response({"message": "this operation is permited!"}, status.HTTP_403_FORBIDDEN)
-    
-    def delete(self, request):
-        return Response({"message": "this operation is permited!"}, status.HTTP_403_FORBIDDEN)
