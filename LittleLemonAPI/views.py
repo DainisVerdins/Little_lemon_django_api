@@ -95,7 +95,7 @@ def managers_group_view(request):
         view for user with Manager role to assign or see all managers in system.
 
     * [GET] Only Manager user can get a list of Managers in system.
-    * [POST] Only Manager could assign via POST method new Manager to system from payload
+    * [POST] Only Manager could assign via POST method new Manager to system from payload aka body
     """
     if request.user.groups.filter(name="Manager").exists():
         if request.method == 'GET':
@@ -105,13 +105,15 @@ def managers_group_view(request):
             return Response(serialized_item.data, status.HTTP_200_OK)
 
         if request.method == 'POST':
-            username = request.data['username']
+            username = request.POST.get('username')
+            email = request.POST.get('email')
+            password = request.POST.get('password')
 
-            if username:
-                user = get_object_or_404(User, username=username)
-                managers = Group.objects.get(name='Manager')
-                managers.user_set.add(user)
-                return Response(status.HTTP_201_CREATED)
+            user = User.objects.create_user(username,email,password)
+            user.save()
+            managers = Group.objects.get(name='Manager')
+            managers.user_set.add(user)
+            return Response(status.HTTP_201_CREATED)
 
     else:
         return Response({'message': 'this operation is permited!'}, status.HTTP_403_FORBIDDEN)
@@ -123,7 +125,7 @@ def manager_view(request,userId):
     """
     View to delete user with Manager role, only users with Manager role could do that.
 
-    * [DELETE] Deletes manager from the system.
+    * [DELETE] Removes this particular user from the manager group
     """
     if request.user.groups.filter(name="Manager").exists():
         user = get_object_or_404(User, id=userId)
@@ -135,3 +137,13 @@ def manager_view(request,userId):
 
     else:
         return Response({'message': 'this operation is permited!'}, status.HTTP_403_FORBIDDEN)
+
+@api_view(['GET', 'POST'])
+#@permission_classes([IsAuthenticated])
+def delivery_crew_view(reqeust):
+    """
+        view for user with Manager role to manipulate with user with role delivery_crew.
+
+    * [GET] Get list of all users with role delivery crew.
+    * [POST] Assign user to delivery crew
+    """

@@ -7,5 +7,6 @@ urlpatterns = [
     path('api-token-auth/', obtain_auth_token),
     path('menu-items/<int:menuItem>', views.menu_item, name='menu-item'),
     path('groups/manager/users', views.managers_group_view, name='managers-group'),
-    path('groups/manager/users/<int:userId>', views.manager_view, name='managers-view')
+    path('groups/manager/users/<int:userId>', views.manager_view, name='managers-view'),
+    path('groups/delivery-crew/users', views.manager_view, name='delivery-crew-view')
 ] 
