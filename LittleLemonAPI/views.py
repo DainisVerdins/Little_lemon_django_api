@@ -105,15 +105,13 @@ def managers_group_view(request):
             return Response(serialized_item.data, status.HTTP_200_OK)
 
         if request.method == 'POST':
-            username = request.POST.get('username')
-            email = request.POST.get('email')
-            password = request.POST.get('password')
+            username = request.data['username']
 
-            user = User.objects.create_user(username,email,password)
-            user.save()
-            managers = Group.objects.get(name='Manager')
-            managers.user_set.add(user)
-            return Response(status.HTTP_201_CREATED)
+            if username:
+                user = get_object_or_404(User, username=username)
+                managers = Group.objects.get(name='Manager')
+                managers.user_set.add(user)
+                return Response(status.HTTP_201_CREATED)
 
     else:
         return Response({'message': 'this operation is permited!'}, status.HTTP_403_FORBIDDEN)
@@ -142,7 +140,7 @@ def manager_view(request,userId):
 #@permission_classes([IsAuthenticated])
 def delivery_crew_view(request):
     """
-        View for user with Manager role to manipulate with user with role delivery_crew.
+    View for user with Manager role to manipulate with user with role delivery_crew.
 
     * [GET] Get list of all users with role delivery crew.
     * [POST] Assign user to delivery crew
@@ -155,17 +153,14 @@ def delivery_crew_view(request):
             return Response(serialized_item.data, status.HTTP_200_OK)
 
         if request.method == 'POST':
-            username = request.POST.get('username') # TODO: avoid code duplication make some kind of function to get user data from reqeust
-            email = request.POST.get('email')
-            password = request.POST.get('password')
+            username = request.data['username']
 
-            user = User.objects.create_user(username,email,password)
-            user.save()
-
-            delivery_crews = Group.objects.get(name='Delivery crew')
-            delivery_crews.user_set.add(user)
-                
-            return Response(status.HTTP_201_CREATED)
-
+            if username:
+                user = get_object_or_404(User, username=username)
+                delivery_crews = Group.objects.get(name='Delivery crew') # TODO: make group names as constants
+                delivery_crews.user_set.add(user)
+                return Response(status.HTTP_201_CREATED)
+            else :
+                return Response({'message': 'no user name was provided in payload!'}, status.HTTP_400_BAD_REQUEST)
     else:
         return Response({'message': 'this operation is permited!'}, status.HTTP_403_FORBIDDEN)
