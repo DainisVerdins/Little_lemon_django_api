@@ -1,6 +1,6 @@
 from django.shortcuts import render, get_object_or_404
-from .models import MenuItem, Category, Cart
-from .serializers import MenuItemSerializer, UserSerializer, CartSerializer
+from .models import MenuItem, Category, Cart, Order, OrderItem
+from .serializers import MenuItemSerializer, UserSerializer, CartSerializer, OrderItemSerializer, OrderSerializer
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework.decorators import api_view, permission_classes
@@ -175,7 +175,7 @@ def delivery_crew_view(request):
 def cart_management_view(request):
     """
         Cart managment view for Customers and authenticated users
-        
+
         * [GET] Returns current items in the cart for the current user 
         * [POST] Adds the menu item to the cart.
         * [DELETE] Deletes all menu items created by the current user token
@@ -193,15 +193,14 @@ def cart_management_view(request):
         price = request.POST.get('price')
 
         users_cart = Cart.objects.get(user__username=request.user)
-        menuitem = get_object_or_404(MenuItem,pk=menuitem_id)
+        menuitem = get_object_or_404(MenuItem, pk=menuitem_id)
 
         users_cart.menuitem = menuitem
         users_cart.quantity = quantity
         users_cart.unit_price = unit_price
-        users_cart.price= price
+        users_cart.price = price
 
         users_cart.save()
-
 
         return Response(status.HTTP_201_CREATED)
 
@@ -211,3 +210,111 @@ def cart_management_view(request):
         user_cart.menuitem = None
 
         return Response(status.HTTP_200_OK)
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def orders_management_view(request):
+    if request.method == 'GET':
+        if request.user.groups.filter(name='Delivery crew').exists():
+            orders_of_the_crew = Order.objects.filter(
+                delivery_crew__id=request.user.id).values_list('id', flat=True)
+            order_items = OrderItem.objects.filter(
+                order__id__in=list(orders_of_the_crew))
+            serialized_items = OrderItemSerializer(order_items, many=True)
+
+            return Response(serialized_items.data, status.HTTP_200_OK)
+
+        if request.user.groups.filter(name='Manager').exists():
+            order_items = OrderItem.objects.all()
+            serialized_items = OrderItemSerializer(order_items, many=True)
+
+            return Response(serialized_items.data, status.HTTP_200_OK)
+
+        orders_of_user_ids = Order.objects.filter(
+            user__id=request.user.id).values_list('id', flat=True)
+        order_items = OrderItem.objects.filter(
+            order__id__in=list(orders_of_user_ids))
+        serialized_items = OrderItemSerializer(order_items, many=True)
+
+        return Response(serialized_items.data, status.HTTP_200_OK)
+
+    if request.method == 'POST':
+        if request.user.groups.filter(name='Delivery crew').filter(name='Manager').exclude():
+            delivery_crew_id = request.POST.get('delivery_crew')
+            delivery_crew = get_object_or_404(User, pk=delivery_crew_id)
+
+            status_of_delivery = request.POST.get('status')
+            total = request.POST.get('total')
+            date = request.POST.get('date')
+
+            new_order = Order(request.user, delivery_crew,
+                              bool(status_of_delivery), total, date)
+            new_order.save()
+            cart_of_user = Cart.objects.get(user__username=request.user)
+            new_order_item = OrderItem(
+                new_order, order_items.menuitem, order_items.quantity, order_items.unit_price, order_items.price)
+
+            new_order_item.save()
+
+            cart_of_user.menuitem = None
+
+            return Response(status.HTTP_201_CREATED)
+        else:
+            return Response(status.HTTP_405_METHOD_NOT_ALLOWED)
+
+
+@api_view(['GET', 'DELETE', 'PATCH', 'PUT'])
+# @permission_classes([IsAuthenticated])
+def order_view(request, orderId):
+    """
+        View of managment of specific order
+    """
+    if request.method == 'GET':
+        if request.user.groups.filter(name='Manager').filter(name='Delivery crew').exclude():
+            order = get_object_or_404(Order, pk=orderId)
+            order_items = OrderItem.objects.filter(order__id=order.id)
+            menu_items_ids = [
+                order_item.menuitem.id for order_item in order_items]
+
+            menu_items = MenuItem.objects.filter(pk__in=list(menu_items_ids))
+            serialized_item = MenuItemSerializer(menu_items, many=True)
+
+            return Response(serialized_item.data, status.HTTP_200_OK)
+
+    if request.method == 'DELETE':
+        if request.user.groups.filter(name='Manager').exists():
+            order = Order.objects.get(pk=orderId)
+            order.delete()
+        else:
+            return Response(status.HTTP_403_FORBIDDEN)
+
+    if request.method == 'PUT':
+        if request.user.groups.filter(name='Manager').exists():
+            order = get_object_or_404(Order, pk=orderId)
+            serializer = OrderSerializer(order, data=request.data)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(status.HTTP_200_OK)
+
+    if request.method == 'PATCH':
+        if request.user.groups.filter(name='Manager').exists():
+            order = get_object_or_404(Order, pk=orderId)
+
+            order_status = request.data['status']
+            delivery_crew_id = request.data['deliver_crew_id']
+
+            order.status = order_status
+            order.delivery_crew = User.objects.get(pk=delivery_crew_id)
+            order.save()
+
+            return Response(status.HTTP_200_OK)
+
+        if request.user.groups.filter(name='Delivery crew').exists():
+            order = Order.objects.get(pk=orderId)
+
+            status_of_delivery = request.POST.get('status')
+            order.status = status_of_delivery
+
+            order.save()
+            return Response(status.HTTP_200_OK)

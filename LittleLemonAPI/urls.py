@@ -10,4 +10,6 @@ urlpatterns = [
     path('groups/manager/users/<int:userId>', views.manager_view, name='managers-view'),
     path('groups/delivery-crew/users', views.delivery_crew_view, name='delivery-crew-view'),
     path('cart/menu-items', views.cart_management_view, name='cart-management-view'),
+    path('orders', views.orders_management_view, name='orders-management-view'),
+    path('orders/<int:orderId>', views.order_view, name='order-view'),
 ] 
