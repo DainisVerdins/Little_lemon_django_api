@@ -140,10 +140,32 @@ def manager_view(request,userId):
 
 @api_view(['GET', 'POST'])
 #@permission_classes([IsAuthenticated])
-def delivery_crew_view(reqeust):
+def delivery_crew_view(request):
     """
-        view for user with Manager role to manipulate with user with role delivery_crew.
+        View for user with Manager role to manipulate with user with role delivery_crew.
 
     * [GET] Get list of all users with role delivery crew.
     * [POST] Assign user to delivery crew
     """
+    if request.user.groups.filter(name='Manager').exists():
+        if request.method == 'GET':
+            deliver_crews = User.objects.filter(groups__name='Delivery crew')
+            serialized_item = UserSerializer(deliver_crews, many=True)
+
+            return Response(serialized_item.data, status.HTTP_200_OK)
+
+        if request.method == 'POST':
+            username = request.POST.get('username') # TODO: avoid code duplication make some kind of function to get user data from reqeust
+            email = request.POST.get('email')
+            password = request.POST.get('password')
+
+            user = User.objects.create_user(username,email,password)
+            user.save()
+
+            delivery_crews = Group.objects.get(name='Delivery crew')
+            delivery_crews.user_set.add(user)
+                
+            return Response(status.HTTP_201_CREATED)
+
+    else:
+        return Response({'message': 'this operation is permited!'}, status.HTTP_403_FORBIDDEN)
