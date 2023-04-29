@@ -1,6 +1,6 @@
 from django.shortcuts import render, get_object_or_404
-from .models import MenuItem, Category
-from .serializers import MenuItemSerializer, UserSerializer
+from .models import MenuItem, Category, Cart
+from .serializers import MenuItemSerializer, UserSerializer, CartSerializer
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework.decorators import api_view, permission_classes
@@ -12,6 +12,7 @@ from django.contrib.auth.models import Group, User
 
 
 @api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
 def menu_items(request):
     """
     View list of menu items in the system.
@@ -50,6 +51,7 @@ def menu_items(request):
 
 
 @api_view(['GET', 'PUT', 'PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
 def menu_item(request, menuItem):
 
     try:
@@ -119,7 +121,7 @@ def managers_group_view(request):
 
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
-def manager_view(request,userId):
+def manager_view(request, userId):
     """
     View to delete user with Manager role, only users with Manager role could do that.
 
@@ -136,8 +138,9 @@ def manager_view(request,userId):
     else:
         return Response({'message': 'this operation is permited!'}, status.HTTP_403_FORBIDDEN)
 
+
 @api_view(['GET', 'POST'])
-#@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated])
 def delivery_crew_view(request):
     """
     View for user with Manager role to manipulate with user with role delivery_crew.
@@ -157,10 +160,54 @@ def delivery_crew_view(request):
 
             if username:
                 user = get_object_or_404(User, username=username)
-                delivery_crews = Group.objects.get(name='Delivery crew') # TODO: make group names as constants
+                # TODO: make group names as constants
+                delivery_crews = Group.objects.get(name='Delivery crew')
                 delivery_crews.user_set.add(user)
                 return Response(status.HTTP_201_CREATED)
-            else :
+            else:
                 return Response({'message': 'no user name was provided in payload!'}, status.HTTP_400_BAD_REQUEST)
     else:
         return Response({'message': 'this operation is permited!'}, status.HTTP_403_FORBIDDEN)
+
+
+@api_view(['GET', 'POST', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def cart_management_view(request):
+    """
+        Cart managment view for Customers and authenticated users
+        
+        * [GET] Returns current items in the cart for the current user 
+        * [POST] Adds the menu item to the cart.
+        * [DELETE] Deletes all menu items created by the current user token
+    """
+    if request.method == 'GET':
+        menu_items = Cart.objects.get(user__username=request.user).menuitem
+        serialized_item = MenuItemSerializer(menu_items, many=False)
+
+        return Response(serialized_item.data, status.HTTP_200_OK)
+
+    if request.method == 'POST':
+        menuitem_id = request.POST.get('menuitem_id')
+        quantity = request.POST.get('quantity')
+        unit_price = request.POST.get('unit_price')
+        price = request.POST.get('price')
+
+        users_cart = Cart.objects.get(user__username=request.user)
+        menuitem = get_object_or_404(MenuItem,pk=menuitem_id)
+
+        users_cart.menuitem = menuitem
+        users_cart.quantity = quantity
+        users_cart.unit_price = unit_price
+        users_cart.price= price
+
+        users_cart.save()
+
+
+        return Response(status.HTTP_201_CREATED)
+
+    if request.method == 'DELETE':
+
+        user_cart = Cart.objects.get(user__username=request.user)
+        user_cart.menuitem = None
+
+        return Response(status.HTTP_200_OK)
